@@ -8,7 +8,7 @@ using UnityEngine.UI;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
-#if DMD_INK
+#if INK_RUNTIME
 using Ink.Runtime;
 #endif
 
@@ -23,8 +23,7 @@ namespace DMD.Dialogue
     /// Pendant le dialogue, les composants listés dans « Désactiver pendant le dialogue »
     /// (ex. ThirdPersonController, PlayerInput) sont coupés et le curseur est libéré.
     ///
-    /// Ink est requis : le symbole DMD_INK est ajouté automatiquement dès que le paquet Ink est installé
-    /// (voir Editor/InkDefine). Sans Ink, ce script compile mais affiche une erreur au lancement.
+    /// Ink est requis : le paquet Ink définit lui-même le symbole INK_RUNTIME. Sans Ink, ce script compile mais affiche une erreur au lancement.
     /// </summary>
     public class DialogueRunner : MonoBehaviour
     {
@@ -63,7 +62,7 @@ namespace DMD.Dialogue
         private int startedFrame;
         private bool waitingForChoice;
 
-#if DMD_INK
+#if INK_RUNTIME
         private Story story;
         private TextAsset storyJson; // fichier de l'histoire en mémoire : ses variables Ink sont conservées d'un knot à l'autre
 #endif
@@ -112,7 +111,7 @@ namespace DMD.Dialogue
         /// </summary>
         public void StartDialogue(TextAsset json, string knot)
         {
-#if DMD_INK
+#if INK_RUNTIME
             if (IsRunning) return;
             if (json == null)
             {
@@ -172,7 +171,7 @@ namespace DMD.Dialogue
         /// <summary>Lit une variable Ink (ex. "approche_fuite" → "Propre" ou "Sale").</summary>
         public object GetVariable(string name)
         {
-#if DMD_INK
+#if INK_RUNTIME
             return story?.variablesState[name];
 #else
             return null;
@@ -183,7 +182,7 @@ namespace DMD.Dialogue
 
         private void Advance()
         {
-#if DMD_INK
+#if INK_RUNTIME
             if (story.canContinue) ShowNextLine();
             else if (story.currentChoices.Count == 0) EndDialogue();
 #endif
@@ -191,7 +190,7 @@ namespace DMD.Dialogue
 
         private void ShowNextLine()
         {
-#if DMD_INK
+#if INK_RUNTIME
             // Saute les lignes vides (lignes de tags seuls) en appliquant quand même leurs tags.
             string line = "";
             while (story.canContinue)
@@ -220,7 +219,7 @@ namespace DMD.Dialogue
 
         private void ShowChoices()
         {
-#if DMD_INK
+#if INK_RUNTIME
             ClearChoices();
             waitingForChoice = true;
             if (continueHint != null) continueHint.SetActive(false);
@@ -280,7 +279,7 @@ namespace DMD.Dialogue
 
         private void Choose(int index)
         {
-#if DMD_INK
+#if INK_RUNTIME
             if (!waitingForChoice || index < 0 || index >= story.currentChoices.Count) return;
 
             // Les touches 1–9 contournent l'état « grisé » des boutons : le paiement est donc revérifié ici.
