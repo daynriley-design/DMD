@@ -62,7 +62,9 @@ namespace DMD.Dialogue
 
         private bool CanTrigger()
         {
-            if (used && oneShot) return false;
+            // Avec un objectif lié, c'est lui qui décide : on peut revenir tant qu'il n'est pas fait
+            // (ex. repartir de chez Bébé-Cash sans assez d'argent, puis revenir payer).
+            if (used && oneShot && string.IsNullOrEmpty(completesObjective)) return false;
             if (string.IsNullOrEmpty(questId)) return true;
 
             var quests = QuestManager.Instance;

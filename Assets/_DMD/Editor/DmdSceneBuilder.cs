@@ -270,6 +270,7 @@ namespace DMD.EditorTools
             Set(runner, "choicesRoot", choices);
             Set(runner, "choiceTemplate", button);
             Set(runner, "tagRouter", router);
+            Set(runner, "wallet", FindAsset<DMD.Economy.CurrencyWallet>()); // null tant que les données du Chapitre 2 n'existent pas
             SetArray(runner, "disableDuringDialogue", FindPlayerControllers());
 
             Undo.RegisterCreatedObjectUndo(canvas.gameObject, "Créer dialogue DMD");

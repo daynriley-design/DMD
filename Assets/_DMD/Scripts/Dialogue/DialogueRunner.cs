@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using DMD.Core;
+using DMD.Economy;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -45,6 +46,8 @@ namespace DMD.Dialogue
 
         [Header("Systèmes")]
         [SerializeField] private InkTagRouter tagRouter;
+        [Tooltip("Portefeuille du joueur : prix des choix (#COST), boutons grisés si l'argent manque.")]
+        [SerializeField] private CurrencyWallet wallet;
         [Tooltip("Composants coupés pendant le dialogue (contrôleur du joueur, caméra...).")]
         [SerializeField] private Behaviour[] disableDuringDialogue = new Behaviour[0];
         [Tooltip("Nom affiché pour « TOI » si aucun prénom n'a été choisi à l'écran titre.")]
@@ -219,20 +222,60 @@ namespace DMD.Dialogue
             for (int i = 0; i < story.currentChoices.Count; i++)
             {
                 int index = i;
+                var choice = story.currentChoices[i];
+                string text = choice.text.Trim();
+                bool affordable = true;
+
+                // Choix payant : prix affiché, bouton grisé si l'argent sur soi ne suffit pas.
+                if (TryGetCost(choice.tags, out Currency currency, out int amount))
+                {
+                    text += $"  ({CurrencyWallet.Format(currency, amount)})";
+                    affordable = wallet == null || wallet.CanAfford(currency, amount);
+                }
+
                 Button button = Instantiate(choiceTemplate, choicesRoot);
                 button.gameObject.SetActive(true);
+                button.interactable = affordable;
                 var label = button.GetComponentInChildren<TMP_Text>();
-                if (label != null) label.text = $"{i + 1}. {story.currentChoices[i].text.Trim()}";
+                if (label != null) label.text = $"{i + 1}. {text}";
                 button.onClick.AddListener(() => Choose(index));
                 choiceButtons.Add(button);
             }
 #endif
         }
 
+        /// <summary>
+        /// Lit un tag de prix sur un choix Ink : « * [Payer sans discuter #COST:CDF:35000] ».
+        /// Le paiement est fait au moment du choix (inutile d'ajouter un #CASH dans la suite).
+        /// </summary>
+        private static bool TryGetCost(IList<string> tags, out Currency currency, out int amount)
+        {
+            currency = Currency.CDF;
+            amount = 0;
+            if (tags == null) return false;
+
+            foreach (string raw in tags)
+            {
+                string[] p = raw.Trim().Split(':');
+                if (p.Length != 3 || !p[0].Trim().Equals("COST", System.StringComparison.OrdinalIgnoreCase)) continue;
+                if (!System.Enum.TryParse(p[1].Trim(), true, out currency)) continue;
+                if (!int.TryParse(p[2].Trim(), System.Globalization.NumberStyles.Integer,
+                                  System.Globalization.CultureInfo.InvariantCulture, out amount) || amount <= 0) continue;
+                return true;
+            }
+            return false;
+        }
+
         private void Choose(int index)
         {
 #if DMD_INK
             if (!waitingForChoice || index < 0 || index >= story.currentChoices.Count) return;
+
+            // Les touches 1–9 contournent l'état « grisé » des boutons : le paiement est donc revérifié ici.
+            var picked = story.currentChoices[index];
+            if (TryGetCost(picked.tags, out Currency currency, out int amount) && wallet != null &&
+                !wallet.TrySpend(currency, amount, $"Dialogue — {picked.text.Trim()}"))
+                return;
 
             waitingForChoice = false;
             startedFrame = Time.frameCount; // le clic qui choisit ne doit pas aussi faire avancer la ligne suivante

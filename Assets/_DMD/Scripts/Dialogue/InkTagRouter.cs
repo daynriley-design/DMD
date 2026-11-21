@@ -27,6 +27,7 @@ namespace DMD.Dialogue
     ///   #SCENE:Load:02_Planque    → chargé à la FIN du dialogue (FlushPendingScene)
     ///   — Chapitre 2 —
     ///   #CASH:CDF:+5000  #CASH:USD:-50  #CASH:USDUSE:+10   → portefeuille (USDUSE = billets usés)
+    ///   (Pour un choix PAYANT, mettre plutôt #COST:CDF:25000 dans le choix : géré par DialogueRunner.)
     ///   #QUEST:Start:M2_1  #QUEST:Objective:M2_1:acheter_torche  #QUEST:Complete:M2_1  #QUEST:Fail:M2_4
     ///   #TIME:Advance:3  (heures)   #TIME:Until:19  (se reposer jusqu'à 19h)
     ///   #OUTFIT:ChemiseGombe        → change de tenue

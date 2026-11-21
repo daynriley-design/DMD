@@ -399,6 +399,7 @@ namespace DMD.EditorTools
                 // Mission 2.1 : l'appel de Cédric se lance dès l'arrivée à Limete ;
                 // les scènes suivantes (canal, vendeur, portail) sont lancées par les DialogueTrigger.
                 Set(runner, "inkJson", FindInkJson("Ch02_M2_1_ZeroTrace"));
+                Set(runner, "wallet", data.wallet);
                 SetString(runner, "startKnot", "m2_1_appel");
                 SetBool(runner, "playOnStart", true);
             }

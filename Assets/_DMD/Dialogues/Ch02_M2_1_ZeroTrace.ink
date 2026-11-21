@@ -59,19 +59,23 @@ TOI : "Un téléphone torche. Simple. Et une puce qui marche direct, sans papier
 <i>Il te dévisage, jette un œil à ton t-shirt blanc.</i>
 BÉBÉ-CASH : "T'es étudiant, toi, non ? T'as l'air pressé. Pour un bon petit Itel avec la batterie qui tient, plus une SIM déjà activée… ça fait 35 000 Francs."
 
-* [Négocier — économise 10 000 FC, mais attire un peu l'attention]
+// #COST sur un choix : prix affiché, bouton grisé si l'argent manque, paiement au moment du choix.
++ [Négocier — économise 10 000 FC, mais attire un peu l'attention #COST:CDF:25000]
     ~ a_negocie = true
     TOI : "35 000 ? Tu me prends pour un touriste de Gombe ? Je te donne 25 000, cash, et je disparais."
-    #CASH:CDF:-25000
     #HEAT:Kinshasa:+3
     BÉBÉ-CASH : "Ah, t'es un enfant de Kin quand même ! Va pour 25 000, mais tu dis pas où t'as pris la puce."
     -> conseil
 
-* [Payer sans discuter — discret et rapide, 35 000 FC]
++ [Payer sans discuter — discret et rapide #COST:CDF:35000]
     TOI : "Tiens. 35 000. Donne-moi ça vite."
-    #CASH:CDF:-35000
     BÉBÉ-CASH : "J'aime les clients qui parlent pas trop. Tiens, la batterie est déjà à moitié chargée."
     -> conseil
+
++ [Repasser plus tard]
+    TOI : "Je repasse."
+    BÉBÉ-CASH : "Le présentoir bouge pas, petit. Mais les voitures noires, elles, elles bougent."
+    -> END
 
 = conseil
 <i>Il baisse la voix en te tendant le téléphone.</i>
