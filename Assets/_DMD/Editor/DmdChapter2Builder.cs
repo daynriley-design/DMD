@@ -5,6 +5,7 @@ using System.Linq;
 using DMD.Core;
 using DMD.Dialogue;
 using DMD.Economy;
+using DMD.Heat;
 using DMD.Quests;
 using DMD.World;
 using UnityEditor;
@@ -164,14 +165,15 @@ namespace DMD.EditorTools
                 q.questId = "M2_2";
                 q.title = "Billet Propre";
                 q.district = DistrictId.MatongeKalamu;
-                q.summary = "Faire une course discrète pour un cambiste : livrer une enveloppe scellée à travers la foule de Victoire sans être repéré par les agents en civil.";
-                q.stakes = "Apprendre l'économie CDF/USD et les raccourcis piétons dans les ruelles.";
+                q.summary = "Mama Chantal, cambiste du Rond-Point Victoire, confie une enveloppe scellée à livrer chez Papa Gérard (dépôt de boissons derrière le marché de Matonge), par les ruelles, sans croiser les agents en civil. Retour avec le reçu : 60 $ propres.";
+                q.stakes = "Apprendre l'économie CDF/USD et les raccourcis piétons. Débloque le bureau de change de Mama Chantal.";
                 q.prerequisites = new() { d.m21 };
+                q.rewardUSD = 60;
                 q.objectives = new()
                 {
-                    Obj("trouver_cambiste", "Trouver le cambiste du Rond-Point Victoire"),
-                    Obj("livrer_enveloppe", "Livrer l'enveloppe scellée sans te faire repérer"),
-                    Obj("payer_loyer", "Payer la première semaine de planque"),
+                    Obj("parler_chantal", "Trouver Mama Chantal au Rond-Point Victoire"),
+                    Obj("livrer_enveloppe", "Livrer l'enveloppe chez Papa Gérard par les ruelles"),
+                    Obj("ramener_recu", "Ramener le reçu tamponné à Mama Chantal"),
                 };
             });
             d.m23 = CreateOrLoad<QuestData>("Mission_2_3_OreilleDeMatonge", q =>
@@ -179,12 +181,12 @@ namespace DMD.EditorTools
                 q.questId = "M2_3";
                 q.title = "L'Oreille de Matonge";
                 q.district = DistrictId.MatongeKalamu;
-                q.summary = "Retrouver un ancien journaliste déchu dans un nganda, le soir. Il détient un nom lié au trafic de minerais. En échange : récupérer une clé USB confisquée dans un cybercafé surveillé.";
+                q.summary = "Retrouver un ancien journaliste déchu au nganda « Chez Ntemba », le soir. Il détient un nom lié au trafic de minerais. En échange : récupérer une clé USB confisquée dans un cybercafé surveillé.";
                 q.stakes = "Premier vrai choix moral : soudoyer le gérant, voler la clé en infiltration ou faire diversion.";
                 q.prerequisites = new() { d.m22 };
                 q.objectives = new()
                 {
-                    Obj("trouver_journaliste", "Retrouver l'ancien journaliste au nganda (le soir)"),
+                    Obj("trouver_journaliste", "Retrouver l'ancien journaliste « Chez Ntemba » (le soir)"),
                     Obj("recuperer_cle", "Récupérer la clé USB au cybercafé (soudoyer, voler ou faire diversion)"),
                     Obj("obtenir_nom", "Rendre la clé et obtenir le nom"),
                 };
@@ -277,6 +279,10 @@ namespace DMD.EditorTools
 
                 AddMission21Set(root.transform, district);
             }
+            else if (district.id == DistrictId.MatongeKalamu)
+            {
+                AddMission22Set(root.transform, data);
+            }
 
             // Arrêts de moto wewa vers les autres quartiers
             var others = data.Districts.Where(o => o != district).ToArray();
@@ -337,7 +343,8 @@ namespace DMD.EditorTools
         }
 
         private static void AddDialogueZone(Transform parent, string name, Vector3 position, Vector3 size, TextAsset ink,
-                                            string knot, string prompt, string requires, string completes)
+                                            string knot, string prompt, string requires, string completes,
+                                            string questId = "M2_1", bool afterCompleted = false)
         {
             var go = new GameObject(name);
             go.transform.SetParent(parent);
@@ -350,9 +357,88 @@ namespace DMD.EditorTools
             Set(trigger, "inkJson", ink);
             SetString(trigger, "knot", knot);
             SetString(trigger, "prompt", prompt);
-            SetString(trigger, "questId", "M2_1");
+            SetString(trigger, "questId", questId);
             SetString(trigger, "requiresObjective", requires);
             SetString(trigger, "completesObjective", completes);
+            SetBool(trigger, "onlyAfterQuestCompleted", afterCompleted);
+        }
+
+        /// <summary>
+        /// Mission 2.2 « Billet Propre » dans Zone_Matonge :
+        /// parasol de Mama Chantal (Rond-Point Victoire), dépôt de Papa Gérard (derrière le marché),
+        /// deux agents en civil sur la grande avenue, et la ruelle des salons de coiffure pour les contourner.
+        /// </summary>
+        private static void AddMission22Set(Transform parent, Ch2Data data)
+        {
+            var set = new GameObject("Mission_2_2_BilletPropre").transform;
+            set.SetParent(parent);
+            var ink = FindInkJson("Ch02_M2_2_BilletPropre");
+
+            // Repères de Zone_Matonge : [0] Rond-Point Victoire (20°), [1] Marché (92°) — rayon 45 m.
+            Vector3 victoire = Quaternion.Euler(0f, 20f, 0f) * Vector3.forward * 36f;
+            Vector3 market = Quaternion.Euler(0f, 92f, 0f) * Vector3.forward * 36f;
+
+            // Mama Chantal : tabouret + parasol + bureau de change
+            var chantal = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            chantal.name = "Mama_Chantal (cambiste)";
+            chantal.transform.SetParent(set);
+            chantal.transform.position = victoire + Vector3.up;
+            var exchange = chantal.AddComponent<CambisteExchange>();
+            Set(exchange, "wallet", data.wallet);
+
+            AddDialogueZone(set, "Zone_Chantal_Mission", victoire + Vector3.up, new Vector3(4f, 2f, 4f), ink,
+                            "m2_2_chantal", "[E] Parler à Mama Chantal", requires: "", completes: "parler_chantal", questId: "M2_2");
+            AddDialogueZone(set, "Zone_Chantal_Retour", victoire + Vector3.up, new Vector3(4f, 2f, 4f), ink,
+                            "m2_2_retour", "[E] Rendre le reçu à Mama Chantal", requires: "livrer_enveloppe", completes: "ramener_recu", questId: "M2_2");
+            AddDialogueZone(set, "Zone_Chantal_Change", victoire + Vector3.up, new Vector3(4f, 2f, 4f), ink,
+                            "chantal_change", "[E] Changer de l'argent (Mama Chantal)", requires: "", completes: "", questId: "M2_2", afterCompleted: true);
+
+            // Dépôt de boissons de Papa Gérard
+            var depot = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            depot.name = "Depot_Boissons_PapaGerard";
+            depot.transform.SetParent(set);
+            depot.transform.position = market + new Vector3(0f, 2f, 6f);
+            depot.transform.localScale = new Vector3(8f, 4f, 6f);
+            depot.isStatic = true;
+            AddDialogueZone(set, "Zone_Grille_Gerard", market + new Vector3(0f, 1f, 2f), new Vector3(4f, 2f, 3f), ink,
+                            "m2_2_gerard", "[E] Frapper à la grille du dépôt", requires: "parler_chantal", completes: "livrer_enveloppe", questId: "M2_2");
+
+            // Agents en civil sur la grande avenue (entre Victoire et le marché), regard vers le centre
+            Vector3 avenue = Vector3.Lerp(victoire, market, 0.5f);
+            for (int i = 0; i < 2; i++)
+            {
+                var agent = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+                agent.name = $"Agent_Civil_{i + 1}";
+                agent.transform.SetParent(set);
+                agent.transform.position = avenue + new Vector3(i * 3f - 1.5f, 1f, 0f);
+                agent.transform.LookAt(new Vector3(0f, 1f, 0f));
+                var witness = agent.AddComponent<WitnessDetector>();
+                SetEnum(witness, "kind", (int)WitnessDetector.WitnessKind.Policier);
+                SetBool(witness, "spotOnSight", true);
+                SetString(witness, "suspiciousItem", "Enveloppe_Scellee");
+                if (i == 1) SetString(witness, "spotBark", ""); // un seul agent interpelle
+            }
+
+            // Ruelle des salons de coiffure : deux murs qui cachent un passage étroit (raccourci piéton)
+            Vector3 toCenter = (-avenue).normalized;
+            Vector3 side = Vector3.Cross(Vector3.up, toCenter);
+            for (int i = -1; i <= 1; i += 2)
+            {
+                var wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                wall.name = i < 0 ? "Salon_Coiffure_A" : "Salon_Coiffure_B";
+                wall.transform.SetParent(set);
+                wall.transform.position = avenue + toCenter * 10f + side * (i * 2.5f) + Vector3.up * 2f;
+                wall.transform.rotation = Quaternion.LookRotation(side);
+                wall.transform.localScale = new Vector3(14f, 4f, 3f);
+                wall.isStatic = true;
+            }
+
+            // Étal du marché pour se fondre dans la foule
+            var stall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            stall.name = "Etal_Marche (se cacher)";
+            stall.transform.SetParent(set);
+            stall.transform.position = market + new Vector3(-5f, 1f, -3f);
+            stall.transform.localScale = new Vector3(4f, 2f, 1.5f);
         }
 
         private static void AddSpawn(Transform parent, string id, Vector3 position)
@@ -502,5 +588,6 @@ namespace DMD.EditorTools
 
         private static void SetString(Object target, string property, string value) => SetValue(target, property, p => p.stringValue = value);
         private static void SetBool(Object target, string property, bool value) => SetValue(target, property, p => p.boolValue = value);
+        private static void SetEnum(Object target, string property, int index) => SetValue(target, property, p => p.enumValueIndex = index);
     }
 }

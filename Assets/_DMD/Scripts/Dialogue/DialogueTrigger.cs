@@ -36,6 +36,8 @@ namespace DMD.Dialogue
         [SerializeField] private string requiresObjective = "";
         [Tooltip("Objectif accompli par cette scène : la zone se désactive une fois qu'il est fait.")]
         [SerializeField] private string completesObjective = "";
+        [Tooltip("La zone ne s'ouvre qu'une fois la mission TERMINÉE (ex. bureau de change de Mama Chantal).")]
+        [SerializeField] private bool onlyAfterQuestCompleted = false;
 
         private bool playerInside;
         private bool used;
@@ -64,14 +66,22 @@ namespace DMD.Dialogue
         {
             // Avec un objectif lié, c'est lui qui décide : on peut revenir tant qu'il n'est pas fait
             // (ex. repartir de chez Bébé-Cash sans assez d'argent, puis revenir payer).
-            if (used && oneShot && string.IsNullOrEmpty(completesObjective)) return false;
+            if (used && oneShot && string.IsNullOrEmpty(completesObjective) && !onlyAfterQuestCompleted) return false;
             if (string.IsNullOrEmpty(questId)) return true;
 
             var quests = QuestManager.Instance;
             if (quests == null) return true; // pas de système de quêtes : on laisse passer (tests)
 
             var quest = quests.Find(questId);
-            if (quest == null || quests.GetState(quest) != QuestState.Active) return false;
+            if (quest == null) return false;
+
+            var state = quests.GetState(quest);
+            if (onlyAfterQuestCompleted) return state == QuestState.Terminee;
+
+            // La scène d'ouverture (aucun objectif requis) peut lancer une mission simplement disponible :
+            // c'est le knot Ink qui fait #QUEST:Start.
+            bool opening = string.IsNullOrEmpty(requiresObjective);
+            if (state != QuestState.Active && !(opening && state == QuestState.Disponible)) return false;
             if (!string.IsNullOrEmpty(requiresObjective) && !quests.IsObjectiveDone(quest, requiresObjective)) return false;
             if (!string.IsNullOrEmpty(completesObjective) && quests.IsObjectiveDone(quest, completesObjective)) return false;
             return true;

@@ -20,7 +20,8 @@ namespace DMD.Dialogue
     ///   #HEAT:Kinshasa:+45        → HeatManager.AddHeatToCity
     ///   #FLAG:Add:Visage          → allume l'icône dans la ville active
     ///   #FLAG:Clear:Tenue         → l'efface
-    ///   #ITEM:Add:Arrete_Minier   → GameEvents.ItemAdded
+    ///   #ITEM:Add:Arrete_Minier   → GameEvents.ItemAdded     #ITEM:Remove:Enveloppe_Scellee → retire de l'inventaire
+    ///   #EXCHANGE:Chantal:SellUsd:10  (BuyUsd, SellWorn) → change chez un cambiste (CambisteExchange)
     ///   #LOC:Parking_Loyola       → GameEvents.LocationChanged
     ///   #SFX:Phone_Ring           → joue le son correspondant (liste « Sons » ci-dessous)
     ///   #UI:BankNotification:"…"  → GameEvents.NarrativeUi (le HUD l'affiche)
@@ -99,6 +100,7 @@ namespace DMD.Dialogue
                     case "PHONE": HandlePhone(parts, tag); break;
                     case "ZONE": HandleZone(parts, tag); break;
                     case "SAFEHOUSE": HandleSafehouse(parts, tag); break;
+                    case "EXCHANGE": HandleExchange(tag); break;
                     default: Warn($"tag inconnu « #{tag} »"); break;
                 }
             }
@@ -184,12 +186,44 @@ namespace DMD.Dialogue
 
         private void HandleItem(string[] p, string tag)
         {
-            if (p.Length < 3 || Normalize(p[1]) != "ADD" || p[2].Length == 0)
+            string action = p.Length >= 2 ? Normalize(p[1]) : "";
+            if (p.Length < 3 || p[2].Length == 0 || (action != "ADD" && action != "REMOVE"))
             {
-                Warn($"format attendu #ITEM:Add:<Id>, reçu « #{tag} »");
+                Warn($"format attendu #ITEM:<Add|Remove>:<Id>, reçu « #{tag} »");
                 return;
             }
-            GameEvents.RaiseItemAdded(p[2]);
+
+            if (action == "ADD")
+            {
+                GameEvents.RaiseItemAdded(p[2]);
+            }
+            else if (PlayerInventory.Instance == null || !PlayerInventory.Instance.Remove(p[2]))
+            {
+                Warn($"« {p[2]} » n'est pas dans l'inventaire : #ITEM:Remove ignoré.");
+            }
+        }
+
+        private void HandleExchange(string tag)
+        {
+            // #EXCHANGE:Chantal:SellUsd:10 → 4 morceaux
+            string[] p = tag.Split(':');
+            for (int i = 0; i < p.Length; i++) p[i] = p[i].Trim();
+            if (p.Length < 4 || !TryParseInt(p[3], out int usd) || usd <= 0)
+            {
+                Warn($"format attendu #EXCHANGE:<IdCambiste>:<SellUsd|BuyUsd|SellWorn>:<dollars>, reçu « #{tag} »");
+                return;
+            }
+
+            var cambiste = CambisteExchange.Find(p[1]);
+            if (cambiste == null) { Warn($"cambiste « {p[1]} » introuvable dans les scènes chargées."); return; }
+
+            switch (Normalize(p[2]))
+            {
+                case "SELLUSD": cambiste.SellUsd(usd); break;
+                case "BUYUSD": cambiste.BuyUsd(usd); break;
+                case "SELLWORN": cambiste.SellWornUsd(usd); break;
+                default: Warn($"opération de change inconnue « {p[2]} »"); break;
+            }
         }
 
         private void HandleLocation(string[] p, string tag)

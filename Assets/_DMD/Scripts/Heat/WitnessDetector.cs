@@ -44,8 +44,31 @@ namespace DMD.Heat
         [Tooltip("Délai minimal entre deux signalements de ce témoin (évite d'ajouter de la chaleur à chaque image).")]
         [SerializeField, Min(0f)] private float reportCooldown = 3f;
 
+        [Header("Repérage à vue (agents en civil, filatures)")]
+        [Tooltip("Le témoin te repère simplement en te voyant assez longtemps, sans action risquée.")]
+        [SerializeField] private bool spotOnSight = false;
+        [Tooltip("Ne réagit que si le joueur porte cet objet (ex. Enveloppe_Scellee). Vide = toujours.")]
+        [SerializeField] private string suspiciousItem = "";
+        [Tooltip("Distance de repérage (plus courte que la vision : de loin, tu n'es qu'un passant).")]
+        [SerializeField, Min(0.1f)] private float spotRange = 10f;
+        [Tooltip("Secondes à découvert dans la zone de repérage avant d'être interpellé.")]
+        [SerializeField, Min(0.1f)] private float timeToSpot = 1.5f;
+        [SerializeField] private float heatOnSpot = 10f;
+        [Tooltip("Secondes hors de sa vue pour qu'il te perde (casser la ligne de vue dans la foule).")]
+        [SerializeField, Min(0f)] private float loseTrackTime = 10f;
+        [SerializeField, TextArea(1, 3)] private string spotBark = "Hé ! Le petit en t-shirt blanc ! Viens ici une seconde.";
+        [SerializeField] private string lostBark = "Ils t'ont perdu de vue.";
+
         [Header("Debug")]
         [SerializeField] private bool logReports = true;
+
+        private float awareness;      // 0 → 1 : jauge d'alerte du témoin
+        private bool tracking;        // repéré : il te suit des yeux
+        private float unseenTimer;
+
+        /// <summary>Jauge d'alerte (0–1) du repérage à vue.</summary>
+        public float Awareness => awareness;
+        public bool IsTracking => tracking;
 
         private const float TeleportSpeed = 80f; // au-delà : téléportation / respawn, ignoré
 
@@ -72,6 +95,7 @@ namespace DMD.Heat
 
             UpdatePlayerSpeed();
             canSeePlayer = CheckLineOfSight();
+            if (spotOnSight) UpdateSpotting();
             if (!canSeePlayer || Time.time - lastReportTime < reportCooldown) return;
 
             if (WeaponKeyPressed())
@@ -95,6 +119,40 @@ namespace DMD.Heat
                 return hit.transform == player || hit.transform.IsChildOf(player);
 
             return true; // rien touché : vue dégagée (joueur sans collider sur ce calque)
+        }
+
+        /// <summary>
+        /// Repérage à vue : la jauge monte quand tu es visible et proche (avec l'objet suspect),
+        /// redescend sinon. Pleine → interpellation + chaleur. Une fois repéré, il faut rester
+        /// loseTrackTime secondes hors de sa vue pour qu'il te perde.
+        /// </summary>
+        private void UpdateSpotting()
+        {
+            bool carrying = string.IsNullOrEmpty(suspiciousItem)
+                            || (DMD.Economy.PlayerInventory.Instance != null && DMD.Economy.PlayerInventory.Instance.Has(suspiciousItem));
+            bool exposed = canSeePlayer && carrying &&
+                           Vector3.Distance(EyePosition, PlayerTargetPosition) <= spotRange;
+
+            if (!tracking)
+            {
+                float rate = exposed ? 1f / timeToSpot : -0.5f / timeToSpot;
+                awareness = Mathf.Clamp01(awareness + rate * Time.deltaTime);
+                if (awareness < 1f) return;
+
+                tracking = true;
+                unseenTimer = 0f;
+                if (!string.IsNullOrEmpty(spotBark)) DMD.Core.GameEvents.RaiseNarrativeUi("Bark", spotBark);
+                Report(heatOnSpot, IdentityFlag.Visage | IdentityFlag.Tenue, "repérage à vue");
+                return;
+            }
+
+            unseenTimer = canSeePlayer ? 0f : unseenTimer + Time.deltaTime;
+            if (unseenTimer < loseTrackTime) return;
+
+            tracking = false;
+            awareness = 0f;
+            if (!string.IsNullOrEmpty(lostBark)) DMD.Core.GameEvents.RaiseNarrativeUi("Bark", lostBark);
+            if (logReports) Debug.Log($"[Witness] {name} t'a perdu de vue.", this);
         }
 
         private void Report(float heat, IdentityFlag flags, string action)
@@ -158,7 +216,9 @@ namespace DMD.Heat
         private void OnDrawGizmos()
         {
             Vector3 eye = EyePosition;
-            Gizmos.color = canSeePlayer ? Color.red : Color.green;
+            Gizmos.color = tracking || canSeePlayer && !spotOnSight ? Color.red
+                         : awareness > 0f ? Color.yellow
+                         : Color.green;
 
             // Cône vu de dessus (arc horizontal + deux bords)
             const int segments = 24;

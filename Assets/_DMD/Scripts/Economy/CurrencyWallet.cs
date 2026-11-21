@@ -26,13 +26,8 @@ namespace DMD.Economy
         [Min(0)] public int startUSD = 20;
         [Min(0)] public int startWornUSD = 10;
 
-        [Header("Change de rue (cambistes de Victoire)")]
-        [Tooltip("Taux de rue : nombre de CDF pour 1 USD.")]
-        [Min(1)] public int cdfPerUsd = 2850;
-        [Tooltip("Valeur d'un billet usé par rapport à un billet propre.")]
-        [Range(0f, 1f)] public float wornUsdValueRatio = 0.7f;
-        [Tooltip("Commission du cambiste sur chaque change.")]
-        [Range(0f, 0.2f)] public float cambistCommission = 0.03f;
+        // Les taux de change appartiennent à chaque cambiste (voir CambisteExchange) :
+        // Mama Chantal ne fait pas les mêmes prix qu'un changeur de Gombe.
 
         [NonSerialized] private int cashCDF;
         [NonSerialized] private int cashUSD;
@@ -108,35 +103,39 @@ namespace DMD.Economy
             return removed;
         }
 
-        /// <summary>Cambiste : USD → CDF. Les billets usés sont repris avec décote.</summary>
-        public bool TryExchangeUsdToCdf(int usd, bool useWornBills)
+        /// <summary>Vendre des dollars à un cambiste : reçoit usd × cdfPerUsd francs (arrondi inférieur).</summary>
+        public bool TrySellUsd(int usd, float cdfPerUsd, bool wornBills, string reason)
         {
             EnsureInitialized();
             if (usd <= 0) return false;
 
-            int available = useWornBills ? wornUSD : cashUSD;
-            if (available < usd)
+            if ((wornBills ? wornUSD : cashUSD) < usd)
             {
-                OnPaymentRefused?.Invoke(Currency.USD, usd, "Pas assez de dollars à changer.");
+                OnPaymentRefused?.Invoke(Currency.USD, usd, wornBills ? "Pas assez de billets usés." : "Pas assez de dollars sur toi.");
                 return false;
             }
 
-            float value = usd * cdfPerUsd * (useWornBills ? wornUsdValueRatio : 1f) * (1f - cambistCommission);
-            if (useWornBills) SetWorn(wornUSD - usd);
-            else SetCash(Currency.USD, cashUSD - usd, "Change chez le cambiste");
-            SetCash(Currency.CDF, cashCDF + Mathf.FloorToInt(value), "Change chez le cambiste");
+            if (wornBills) SetWorn(wornUSD - usd);
+            else SetCash(Currency.USD, cashUSD - usd, reason);
+            SetCash(Currency.CDF, cashCDF + Mathf.FloorToInt(usd * cdfPerUsd), reason);
             return true;
         }
 
-        /// <summary>Cambiste : CDF → USD (billets propres).</summary>
-        public bool TryExchangeCdfToUsd(int usdWanted)
+        /// <summary>Acheter des dollars propres à un cambiste : coûte usd × cdfPerUsd francs (arrondi supérieur).</summary>
+        public bool TryBuyUsd(int usd, float cdfPerUsd, string reason)
         {
             EnsureInitialized();
-            if (usdWanted <= 0) return false;
+            if (usd <= 0) return false;
 
-            int cost = Mathf.CeilToInt(usdWanted * cdfPerUsd * (1f + cambistCommission));
-            if (!TrySpend(Currency.CDF, cost, "Change chez le cambiste")) return false;
-            SetCash(Currency.USD, cashUSD + usdWanted, "Change chez le cambiste");
+            int cost = Mathf.CeilToInt(usd * cdfPerUsd);
+            if (cashCDF < cost)
+            {
+                OnPaymentRefused?.Invoke(Currency.CDF, cost, $"Il te faut {Format(Currency.CDF, cost)} pour {usd} $.");
+                return false;
+            }
+
+            SetCash(Currency.CDF, cashCDF - cost, reason);
+            SetCash(Currency.USD, cashUSD + usd, reason);
             return true;
         }
 
