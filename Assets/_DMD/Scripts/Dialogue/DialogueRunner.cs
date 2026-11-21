@@ -72,6 +72,19 @@ namespace DMD.Dialogue
         /// <summary>Fichier Ink par défaut (utilisé par les DialogueTrigger sans fichier propre).</summary>
         public TextAsset DefaultInkJson => inkJson;
 
+        /// <summary>Fichier Ink du dernier dialogue lancé (pour enchaîner un knot du même fichier).</summary>
+        public TextAsset CurrentInkJson
+        {
+            get
+            {
+#if INK_RUNTIME
+                return storyJson != null ? storyJson : inkJson;
+#else
+                return inkJson;
+#endif
+            }
+        }
+
         private void Awake()
         {
             if (tagRouter == null) tagRouter = FindAnyObjectByType<InkTagRouter>();
@@ -133,6 +146,11 @@ namespace DMD.Dialogue
             // Le prénom choisi à l'écran titre est disponible dans Ink via {prenom}.
             if (PlayerProfile.HasFirstName && story.variablesState.GlobalVariableExistsWithName("prenom"))
                 story.variablesState["prenom"] = PlayerProfile.FirstName;
+
+            // La tenue portée est lisible dans Ink : VAR tenue (ex. "ChemiseGombe").
+            var district = DMD.World.DistrictManager.Instance;
+            if (district != null && district.CurrentOutfit != null && story.variablesState.GlobalVariableExistsWithName("tenue"))
+                story.variablesState["tenue"] = district.CurrentOutfit.id;
 
             // Les stats du joueur sont lisibles dans Ink : VAR stat_rue / stat_savoir / stat_influence / stat_voix.
             var stats = FindAnyObjectByType<PlayerStats>();

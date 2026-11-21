@@ -70,6 +70,25 @@ namespace DMD.Heat
         public float Awareness => awareness;
         public bool IsTracking => tracking;
 
+        private static readonly System.Collections.Generic.List<WitnessDetector> Active = new();
+
+        private void OnEnable() => Active.Add(this);
+        private void OnDisable() => Active.Remove(this);
+
+        /// <summary>
+        /// Monte la jauge d'alerte de tous les témoins en « repérage à vue » (ex. tag Ink #SUSPICION:30
+        /// quand le joueur s'est montré nerveux à l'accueil). Ne touche que les témoins actuellement
+        /// chargés (le 4ème étage fait partie de Zone_Gombe) ; plafonnée sous 100 % pour laisser une chance.
+        /// </summary>
+        public static void AddSuspicionToAll(float amount01)
+        {
+            foreach (var w in Active)
+                if (w.spotOnSight && !w.tracking) w.awareness = Mathf.Clamp(w.awareness + amount01, 0f, 0.95f);
+        }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics() => Active.Clear();
+
         private const float TeleportSpeed = 80f; // au-delà : téléportation / respawn, ignoré
 
         private bool canSeePlayer;

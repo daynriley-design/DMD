@@ -23,6 +23,9 @@ namespace DMD.Dialogue
     ///   #ITEM:Add:Arrete_Minier   → GameEvents.ItemAdded     #ITEM:Remove:Enveloppe_Scellee → retire de l'inventaire
     ///   #EXCHANGE:Chantal:SellUsd:10  (BuyUsd, SellWorn) → change chez un cambiste (CambisteExchange)
     ///   #EVIDENCE:Board             → mur d'enquête : débloque les missions dont on possède les preuves
+    ///   #TELEPORT:Etage4            → déplace le joueur vers un ZoneSpawnPoint du quartier (ascenseur, escalier)
+    ///   #SUSPICION:30               → +30 % sur la jauge d'alerte des témoins en repérage à vue
+    ///   #NEXT:m2_4_final            → enchaîne ce knot après le dialogue (après le #ZONE s'il y en a un)
     ///   #LOC:Parking_Loyola       → GameEvents.LocationChanged
     ///   #SFX:Phone_Ring           → joue le son correspondant (liste « Sons » ci-dessous)
     ///   #UI:BankNotification:"…"  → GameEvents.NarrativeUi (le HUD l'affiche)
@@ -65,6 +68,7 @@ namespace DMD.Dialogue
         private string pendingScene;
         private DistrictData pendingZone;
         private string pendingZoneSpawn;
+        private string pendingNextKnot;
 
         public string CurrentLocation => currentLocation;
         public string PendingScene => pendingScene;
@@ -103,6 +107,9 @@ namespace DMD.Dialogue
                     case "SAFEHOUSE": HandleSafehouse(parts, tag); break;
                     case "EXCHANGE": HandleExchange(tag); break;
                     case "EVIDENCE": HandleEvidence(parts, tag); break;
+                    case "TELEPORT": HandleTeleport(parts, tag); break;
+                    case "SUSPICION": HandleSuspicion(parts, tag); break;
+                    case "NEXT": HandleNext(parts, tag); break;
                     default: Warn($"tag inconnu « #{tag} »"); break;
                 }
             }
@@ -126,8 +133,26 @@ namespace DMD.Dialogue
             {
                 var zone = pendingZone;
                 pendingZone = null;
-                if (ZoneLoader.Instance != null) ZoneLoader.Instance.LoadZone(zone, pendingZoneSpawn);
+                var loader = ZoneLoader.Instance;
+                if (loader != null)
+                {
+                    // Le knot #NEXT se lance une fois le nouveau quartier chargé et le joueur placé.
+                    if (!string.IsNullOrEmpty(pendingNextKnot))
+                    {
+                        void OnLoaded(DistrictData _)
+                        {
+                            loader.OnZoneLoaded -= OnLoaded;
+                            StartPendingNextKnot();
+                        }
+                        loader.OnZoneLoaded += OnLoaded;
+                    }
+                    loader.LoadZone(zone, pendingZoneSpawn);
+                }
                 else Warn("aucun ZoneLoader dans la scène : #ZONE ignoré.");
+            }
+            else
+            {
+                StartPendingNextKnot();
             }
 
             if (string.IsNullOrEmpty(pendingScene)) return;
@@ -203,6 +228,41 @@ namespace DMD.Dialogue
             {
                 Warn($"« {p[2]} » n'est pas dans l'inventaire : #ITEM:Remove ignoré.");
             }
+        }
+
+        private void HandleTeleport(string[] p, string tag)
+        {
+            if (p.Length < 2 || p[1].Length == 0) { Warn($"format attendu #TELEPORT:<PointArrivee>, reçu « #{tag} »"); return; }
+            if (ZoneLoader.Instance == null) { Warn("aucun ZoneLoader dans la scène : #TELEPORT ignoré."); return; }
+            ZoneLoader.Instance.TeleportTo(p[1]);
+        }
+
+        private void HandleSuspicion(string[] p, string tag)
+        {
+            if (p.Length < 2 || !TryParseFloat(p[1], out float percent))
+            {
+                Warn($"format attendu #SUSPICION:<pourcentage>, reçu « #{tag} »");
+                return;
+            }
+            WitnessDetector.AddSuspicionToAll(percent / 100f);
+        }
+
+        /// <summary>#NEXT:knot → ce knot (même fichier Ink) se lance après le dialogue, une fois l'éventuel #ZONE chargé.</summary>
+        private void HandleNext(string[] p, string tag)
+        {
+            if (p.Length < 2 || p[1].Length == 0) { Warn($"format attendu #NEXT:<knot>, reçu « #{tag} »"); return; }
+            pendingNextKnot = p[1];
+        }
+
+        private void StartPendingNextKnot()
+        {
+            if (string.IsNullOrEmpty(pendingNextKnot)) return;
+            string knot = pendingNextKnot;
+            pendingNextKnot = null;
+
+            var runner = FindAnyObjectByType<DialogueRunner>();
+            if (runner == null) { Warn($"aucun DialogueRunner : #NEXT:{knot} ignoré."); return; }
+            runner.StartDialogue(runner.CurrentInkJson, knot);
         }
 
         private void HandleEvidence(string[] p, string tag)

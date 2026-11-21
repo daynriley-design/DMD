@@ -97,6 +97,28 @@ namespace DMD.World
             OnZoneLoaded?.Invoke(district);
         }
 
+        /// <summary>
+        /// Déplace le joueur vers un ZoneSpawnPoint du quartier chargé, sans changer de scène
+        /// (ascenseur, escalier de secours...). Renvoie faux si le point n'existe pas.
+        /// </summary>
+        public bool TeleportTo(string spawnId)
+        {
+            var player = GameObject.FindGameObjectWithTag(playerTag);
+            if (player == null) return false;
+
+            foreach (var spawn in FindObjectsByType<ZoneSpawnPoint>(FindObjectsSortMode.None))
+            {
+                if (spawn.Id != spawnId) continue;
+                var controller = player.GetComponent<CharacterController>();
+                if (controller != null) controller.enabled = false;
+                player.transform.SetPositionAndRotation(spawn.transform.position, spawn.transform.rotation);
+                if (controller != null) controller.enabled = true;
+                return true;
+            }
+            Debug.LogWarning($"[Zones] Point « {spawnId} » introuvable pour la téléportation.", this);
+            return false;
+        }
+
         private void PlacePlayer(GameObject player, Scene zone, string spawnId)
         {
             ZoneSpawnPoint target = null;

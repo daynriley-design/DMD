@@ -203,11 +203,12 @@ namespace DMD.EditorTools
                 q.requiredEvidence = new() { "Note_Kivu_Transit" }; // la note de Jean-Claude, à épingler sur le mur d'enquête
                 q.objectives = new()
                 {
-                    Obj("changer_tenue", "Enfiler une chemise propre (garde-robe de la planque)"),
-                    Obj("obtenir_badge", "Récupérer un faux badge de stagiaire près de la Gare Centrale"),
-                    Obj("approcher_immeuble", "Entrer chez Kivu-Transit Logistics, avenue du 30 Juin"),
+                    Obj("obtenir_badge", "Récupérer le faux badge de stagiaire près de la Gare Centrale"),
+                    Obj("entrer_immeuble", "Passer l'accueil de Kivu-Transit Logistics (en chemise propre)"),
+                    Obj("atteindre_bureau", "Monter au 4ème étage et localiser le bureau de Kankonde"),
                     Obj("photographier_manifeste", "Photographier le manifeste d'exportation"),
-                    Obj("fuir_gombe", "Fuir à pied puis en wewa jusqu'à Limete"),
+                    Obj("fuir_gombe", "Fuir par l'escalier de secours, puis en wewa jusqu'à Limete"),
+                    Obj("rentrer_planque", "Rentrer à la planque"),
                 };
             });
 
@@ -291,6 +292,10 @@ namespace DMD.EditorTools
                 AddMission22Set(root.transform, data);
                 AddMission23Set(root.transform, data);
             }
+            else if (district.id == DistrictId.Gombe)
+            {
+                AddMission24Set(root.transform);
+            }
 
             // Arrêts de moto wewa vers les autres quartiers
             var others = data.Districts.Where(o => o != district).ToArray();
@@ -358,7 +363,7 @@ namespace DMD.EditorTools
 
         private static void AddDialogueZone(Transform parent, string name, Vector3 position, Vector3 size, TextAsset ink,
                                             string knot, string prompt, string requires, string completes,
-                                            string questId = "M2_1", bool afterCompleted = false)
+                                            string questId = "M2_1", bool afterCompleted = false, bool requireKey = true)
         {
             var go = new GameObject(name);
             go.transform.SetParent(parent);
@@ -375,6 +380,108 @@ namespace DMD.EditorTools
             SetString(trigger, "requiresObjective", requires);
             SetString(trigger, "completesObjective", completes);
             SetBool(trigger, "onlyAfterQuestCompleted", afterCompleted);
+            SetBool(trigger, "requireInteractKey", requireKey);
+        }
+
+        /// <summary>
+        /// Mission 2.4 « La Ligne Rouge » dans Zone_Gombe : contact de la Gare Centrale, hall de Kivu-Transit,
+        /// 4ème étage (plateau isolé en hauteur : couloir, caméra, secrétaire intermittente, bureau de Kankonde,
+        /// escalier de secours), ruelle arrière et wewa de la fuite.
+        /// </summary>
+        private static void AddMission24Set(Transform parent)
+        {
+            var set = new GameObject("Mission_2_4_LaLigneRouge").transform;
+            set.SetParent(parent);
+            var ink = FindInkJson("Ch02_M2_4_LaLigneRouge");
+
+            // Gare Centrale + contact de Jean-Claude
+            Cube(set, "Gare_Centrale", new Vector3(16f, 3f, -22f), new Vector3(14f, 6f, 6f));
+            Capsule(set, "Contact_Badge (photographe ambulant)", new Vector3(9f, 1f, -17f));
+            AddDialogueZone(set, "Zone_Contact_Badge", new Vector3(9f, 1f, -15.5f), new Vector3(3f, 2f, 3f), ink,
+                            "m2_4_badge", "[E] Aborder le contact de Jean-Claude", requires: "", completes: "obtenir_badge", questId: "M2_4");
+
+            // Immeuble Kivu-Transit Logistics (repère « Tours d'affaires », 200°), entrée face au centre
+            Vector3 dir = Quaternion.Euler(0f, 200f, 0f) * Vector3.forward;
+            Vector3 building = dir * 30f;
+            Vector3 toCenter = -dir;
+            var tower = Cube(set, "Kivu_Transit_Logistics (tour vitrée)", building + Vector3.up * 12f, new Vector3(14f, 24f, 14f));
+            tower.transform.rotation = Quaternion.LookRotation(toCenter);
+            Vector3 entrance = building + toCenter * 8f;
+            Capsule(set, "Vigile_Accueil", entrance + toCenter * 0.5f + Vector3.up);
+            AddDialogueZone(set, "Zone_Accueil", entrance + toCenter * 2f + Vector3.up, new Vector3(4f, 2f, 3f), ink,
+                            "m2_4_accueil", "[E] Passer le portique (vigile)", requires: "obtenir_badge", completes: "entrer_immeuble", questId: "M2_4");
+
+            // Ruelle arrière + wewa (sortie de l'escalier de secours)
+            Vector3 alley = building - toCenter * 11f;
+            AddSpawn(set, "Ruelle_Arriere", alley);
+            Capsule(set, "Chauffeur_Wewa", alley - toCenter * 5f + Vector3.up);
+            AddDialogueZone(set, "Zone_Wewa", alley - toCenter * 4f + Vector3.up, new Vector3(4f, 2f, 4f), ink,
+                            "m2_4_wewa", "", requires: "photographier_manifeste", completes: "fuir_gombe", questId: "M2_4", requireKey: false);
+
+            // 4ème étage : plateau isolé à 20 m de haut (axe X = couloir, de l'ascenseur à l'ouest au bureau à l'est)
+            var floor4 = new GameObject("Etage4_Kivu_Transit").transform;
+            floor4.SetParent(set);
+            Vector3 o = new Vector3(60f, 20f, -60f);
+            Cube(floor4, "Sol_Moquette", o, new Vector3(26f, 1f, 16f));
+            Cube(floor4, "Mur_Nord", o + new Vector3(0f, 2f, 8f), new Vector3(26f, 3f, 0.4f));
+            Cube(floor4, "Mur_Sud", o + new Vector3(0f, 2f, -8f), new Vector3(26f, 3f, 0.4f));
+            Cube(floor4, "Mur_Ouest (ascenseur)", o + new Vector3(-13f, 2f, 0f), new Vector3(0.4f, 3f, 16f));
+            Cube(floor4, "Mur_Est (baie vitrée, vue sur le fleuve)", o + new Vector3(13f, 2f, 0f), new Vector3(0.4f, 3f, 16f));
+            Cube(floor4, "Cloison_Mur_Aveugle", o + new Vector3(-1f, 2f, 1.5f), new Vector3(12f, 3f, 0.3f));
+
+            AddSpawn(floor4, "Etage4", o + new Vector3(-11f, 0.6f, -4f));
+            AddDialogueZone(floor4, "Zone_Couloir_Kankonde", o + new Vector3(-10f, 1.6f, -4f), new Vector3(4f, 2f, 5f), ink,
+                            "m2_4_couloir", "", requires: "entrer_immeuble", completes: "atteindre_bureau", questId: "M2_4", requireKey: false);
+
+            // Caméra murale : balaie le côté sud du couloir (le côté nord, derrière la cloison, est le mur aveugle)
+            var cam = Cube(floor4, "Camera_Murale", o + new Vector3(4f, 2.8f, -7.5f), new Vector3(0.4f, 0.3f, 0.6f));
+            cam.transform.rotation = Quaternion.LookRotation(Vector3.left);
+            var camWitness = cam.AddComponent<WitnessDetector>();
+            SetEnum(camWitness, "kind", (int)WitnessDetector.WitnessKind.Camera);
+            SetValue(camWitness, "eyeHeight", p => p.floatValue = 0f);
+            SetValue(camWitness, "viewAngle", p => p.floatValue = 70f);
+            SetBool(camWitness, "spotOnSight", true);
+            SetValue(camWitness, "timeToSpot", p => p.floatValue = 2f);
+            SetValue(camWitness, "heatOnSpot", p => p.floatValue = 15f);
+            SetString(camWitness, "spotBark", "Sécurité, 4ème étage : quelqu'un dans le couloir !");
+
+            // Secrétaire : présente 12 s, absente 8 s (elle va à l'imprimante)
+            var secretaryCycle = new GameObject("Secretaire (cycle imprimante)");
+            secretaryCycle.transform.SetParent(floor4);
+            var secretary = Capsule(secretaryCycle.transform, "Secretaire", o + new Vector3(6f, 1.5f, -2f));
+            secretary.transform.rotation = Quaternion.LookRotation(Vector3.left);
+            var secWitness = secretary.AddComponent<WitnessDetector>();
+            SetBool(secWitness, "spotOnSight", true);
+            SetValue(secWitness, "spotRange", p => p.floatValue = 7f);
+            SetString(secWitness, "spotBark", "Vous cherchez quelqu'un, jeune homme ?");
+            var cycle = secretaryCycle.AddComponent<CycleToggle>();
+            Set(cycle, "target", secretary);
+
+            // Bureau de Kankonde (extrémité est) + escalier de secours
+            Cube(floor4, "Bureau_Bois_Massif (dossier rouge)", o + new Vector3(10f, 1f, 3f), new Vector3(2.5f, 1f, 1.2f));
+            AddDialogueZone(floor4, "Zone_Manifeste", o + new Vector3(10f, 1.6f, 1.5f), new Vector3(3f, 2f, 2f), ink,
+                            "m2_4_manifeste", "[E] Photographier le manifeste", requires: "atteindre_bureau", completes: "photographier_manifeste", questId: "M2_4");
+            AddDialogueZone(floor4, "Zone_Escalier_Secours", o + new Vector3(11.5f, 1.6f, -6f), new Vector3(2f, 2f, 3f), ink,
+                            "m2_4_escalier", "[E] Escalier de secours !", requires: "photographier_manifeste", completes: "fuir_gombe", questId: "M2_4");
+        }
+
+        private static GameObject Cube(Transform parent, string name, Vector3 position, Vector3 scale)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            go.name = name;
+            go.transform.SetParent(parent);
+            go.transform.position = position;
+            go.transform.localScale = scale;
+            return go;
+        }
+
+        private static GameObject Capsule(Transform parent, string name, Vector3 position)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            go.name = name;
+            go.transform.SetParent(parent);
+            go.transform.position = position;
+            return go;
         }
 
         /// <summary>
