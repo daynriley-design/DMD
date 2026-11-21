@@ -181,14 +181,15 @@ namespace DMD.EditorTools
                 q.questId = "M2_3";
                 q.title = "L'Oreille de Matonge";
                 q.district = DistrictId.MatongeKalamu;
-                q.summary = "Retrouver un ancien journaliste déchu au nganda « Chez Ntemba », le soir. Il détient un nom lié au trafic de minerais. En échange : récupérer une clé USB confisquée dans un cybercafé surveillé.";
-                q.stakes = "Premier vrai choix moral : soudoyer le gérant, voler la clé en infiltration ou faire diversion.";
+                q.summary = "Retrouver Jean-Claude Mbuyi, ancien journaliste d'investigation, au nganda « Chez Ntemba » le soir. En échange d'un nom : récupérer sa clé USB rouge, confisquée par le gérant du Cyber-Éclair.";
+                q.stakes = "Premier vrai choix : soudoyer Patrick (20 $), couper le disjoncteur pour faire diversion, ou s'infiltrer derrière le comptoir (chances selon la stat Rue).";
                 q.prerequisites = new() { d.m22 };
                 q.objectives = new()
                 {
-                    Obj("trouver_journaliste", "Retrouver l'ancien journaliste « Chez Ntemba » (le soir)"),
-                    Obj("recuperer_cle", "Récupérer la clé USB au cybercafé (soudoyer, voler ou faire diversion)"),
-                    Obj("obtenir_nom", "Rendre la clé et obtenir le nom"),
+                    Obj("trouver_journaliste", "Retrouver Jean-Claude Mbuyi « Chez Ntemba » (le soir, 19h–2h)"),
+                    new QuestData.Objective { id = "couper_courant", description = "(Diversion) Couper le disjoncteur derrière le Cyber-Éclair", optional = true },
+                    Obj("recuperer_cle", "Récupérer la clé USB rouge au Cyber-Éclair"),
+                    Obj("rapporter_cle", "Rapporter la clé à Jean-Claude"),
                 };
             });
             d.m24 = CreateOrLoad<QuestData>("Mission_2_4_LaLigneRouge", q =>
@@ -196,14 +197,15 @@ namespace DMD.EditorTools
                 q.questId = "M2_4";
                 q.title = "La Ligne Rouge";
                 q.district = DistrictId.Gombe;
-                q.summary = "Avec une tenue propre et un faux badge, approcher un immeuble de bureaux à Gombe et photographier un manifeste d'exportation. L'opération tourne mal : tu es reconnu sur les caméras.";
+                q.summary = "Avec une chemise propre et un faux badge de stagiaire, entrer chez Kivu-Transit Logistics (avenue du 30 Juin, Gombe), société écran de Sébastien Kankonde, et photographier le manifeste d'exportation du mois. L'opération tourne mal : tu es reconnu sur les caméras.";
                 q.stakes = "Fuite à pied puis en wewa dans les embouteillages du crépuscule jusqu'à Limete. Le complot remonte au sommet de l'État.";
                 q.prerequisites = new() { d.m23 };
-                q.requiredEvidence = new() { "Cle_USB_Journaliste", "Note_Nom_Madini" }; // à relier sur le mur d'enquête
+                q.requiredEvidence = new() { "Note_Kivu_Transit" }; // la note de Jean-Claude, à épingler sur le mur d'enquête
                 q.objectives = new()
                 {
-                    Obj("changer_tenue", "Enfiler la chemise propre et le faux badge"),
-                    Obj("approcher_immeuble", "Approcher l'immeuble de bureaux de Gombe"),
+                    Obj("changer_tenue", "Enfiler une chemise propre (garde-robe de la planque)"),
+                    Obj("obtenir_badge", "Récupérer un faux badge de stagiaire près de la Gare Centrale"),
+                    Obj("approcher_immeuble", "Entrer chez Kivu-Transit Logistics, avenue du 30 Juin"),
                     Obj("photographier_manifeste", "Photographier le manifeste d'exportation"),
                     Obj("fuir_gombe", "Fuir à pied puis en wewa jusqu'à Limete"),
                 };
@@ -278,10 +280,16 @@ namespace DMD.EditorTools
                 annex.isStatic = true;
 
                 AddMission21Set(root.transform, district);
+
+                // Menu de la planque (repos, loyer, garde-robe, mur d'enquête) : ouvert après la Mission 2.1
+                AddDialogueZone(root.transform, "Zone_Planque_Interieur", new Vector3(-32f, 1f, -28.5f), new Vector3(5f, 2f, 2.5f),
+                                FindInkJson("Ch02_Planque"), "planque_menu", "[E] Planque : repos, loyer, garde-robe, mur",
+                                requires: "", completes: "", questId: "M2_1", afterCompleted: true);
             }
             else if (district.id == DistrictId.MatongeKalamu)
             {
                 AddMission22Set(root.transform, data);
+                AddMission23Set(root.transform, data);
             }
 
             // Arrêts de moto wewa vers les autres quartiers
@@ -298,6 +306,12 @@ namespace DMD.EditorTools
                 Set(transition, "destination", others[j]);
                 Set(transition, "wallet", data.wallet);
                 SetString(transition, "destinationSpawnId", "Arrivee");
+                if (others[j].id == DistrictId.Gombe)
+                {
+                    // Gombe s'ouvre à la fin de la Mission 2.3 (Jean-Claude donne l'adresse de Kivu-Transit).
+                    SetString(transition, "requiredQuestCompleted", "M2_3");
+                    SetString(transition, "lockedMessage", "Gombe, sans raison et en t-shirt de fac ? Pas encore.");
+                }
             }
 
             EditorSceneManager.SaveScene(scene, path);
@@ -361,6 +375,82 @@ namespace DMD.EditorTools
             SetString(trigger, "requiresObjective", requires);
             SetString(trigger, "completesObjective", completes);
             SetBool(trigger, "onlyAfterQuestCompleted", afterCompleted);
+        }
+
+        /// <summary>
+        /// Mission 2.3 « L'Oreille de Matonge » dans Zone_Matonge :
+        /// nganda « Chez Ntemba » (Jean-Claude présent de 19h à 2h) et Cyber-Éclair
+        /// (comptoir de Patrick, guetteur à la porte, disjoncteur rouillé à l'arrière).
+        /// </summary>
+        private static void AddMission23Set(Transform parent, Ch2Data data)
+        {
+            var set = new GameObject("Mission_2_3_OreilleDeMatonge").transform;
+            set.SetParent(parent);
+            var ink = FindInkJson("Ch02_M2_3_OreilleDeMatonge");
+
+            // Repères de Zone_Matonge : [2] Nganda (164°), [3] Cybercafé (236°)
+            Vector3 nganda = Quaternion.Euler(0f, 164f, 0f) * Vector3.forward * 36f;
+            Vector3 cyber = Quaternion.Euler(0f, 236f, 0f) * Vector3.forward * 36f;
+
+            // Nganda « Chez Ntemba » : terrasse toujours là, Jean-Claude seulement le soir
+            var terrace = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            terrace.name = "Nganda_Chez_Ntemba (terrasse)";
+            terrace.transform.SetParent(set);
+            terrace.transform.position = nganda + Vector3.up * 0.05f;
+            terrace.transform.localScale = new Vector3(10f, 0.1f, 8f);
+
+            var evening = new GameObject("Soiree_19h_2h").transform; // désactivé hors des heures d'ouverture
+            evening.SetParent(set);
+            var jeanClaude = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            jeanClaude.name = "Jean-Claude_Mbuyi";
+            jeanClaude.transform.SetParent(evening);
+            jeanClaude.transform.position = nganda + new Vector3(0f, 1f, 3f);
+            AddDialogueZone(evening, "Zone_JeanClaude", nganda + new Vector3(0f, 1f, 1.5f), new Vector3(4f, 2f, 3f), ink,
+                            "m2_3_ntemba", "[E] S'asseoir en face de Jean-Claude", requires: "", completes: "trouver_journaliste", questId: "M2_3");
+            AddDialogueZone(evening, "Zone_JeanClaude_Retour", nganda + new Vector3(0f, 1f, 1.5f), new Vector3(4f, 2f, 3f), ink,
+                            "m2_3_retour", "[E] Rendre la clé à Jean-Claude", requires: "recuperer_cle", completes: "rapporter_cle", questId: "M2_3");
+
+            var gate = set.gameObject.AddComponent<DMD.World.TimeWindowGate>();
+            SetValue(gate, "fromHour", p => p.floatValue = 19f);
+            SetValue(gate, "toHour", p => p.floatValue = 2f);
+            SetArray(gate, "targets", new Object[] { evening.gameObject });
+
+            // Cyber-Éclair : salle étroite, comptoir, guetteur à l'entrée, disjoncteur à l'arrière
+            Vector3 inward = (-cyber).normalized;
+            var room = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            room.name = "Cyber_Eclair (murs bleus)";
+            room.transform.SetParent(set);
+            room.transform.position = cyber - inward * 4f + Vector3.up * 1.5f;
+            room.transform.rotation = Quaternion.LookRotation(inward);
+            room.transform.localScale = new Vector3(6f, 3f, 8f);
+            room.isStatic = true;
+
+            var patrick = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            patrick.name = "Patrick (gerant)";
+            patrick.transform.SetParent(set);
+            patrick.transform.position = cyber + inward * 1f + Vector3.up;
+
+            AddDialogueZone(set, "Zone_Comptoir_Patrick", cyber + inward * 2.5f + Vector3.up, new Vector3(3f, 2f, 3f), ink,
+                            "cyber_patrick", "[E] Parler à Patrick (comptoir)", requires: "trouver_journaliste", completes: "recuperer_cle", questId: "M2_3");
+            AddDialogueZone(set, "Zone_Comptoir_Noir", cyber + inward * 1.5f + Vector3.up, new Vector3(2f, 2f, 2f), ink,
+                            "cyber_comptoir_noir", "[E] Prendre la clé dans la pénombre", requires: "couper_courant", completes: "recuperer_cle", questId: "M2_3");
+
+            Vector3 back = cyber - inward * 9f;
+            var breaker = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            breaker.name = "Disjoncteur_Rouille";
+            breaker.transform.SetParent(set);
+            breaker.transform.position = back + Vector3.up * 1.5f;
+            breaker.transform.localScale = new Vector3(0.6f, 0.8f, 0.3f);
+            AddDialogueZone(set, "Zone_Disjoncteur", back + Vector3.up - inward * 1.2f, new Vector3(3f, 2f, 2f), ink,
+                            "cyber_disjoncteur", "[E] Couper le disjoncteur", requires: "trouver_journaliste", completes: "couper_courant", questId: "M2_3");
+
+            var lookout = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            lookout.name = "Guetteur (porte du cyber)";
+            lookout.transform.SetParent(set);
+            lookout.transform.position = cyber + inward * 4f + Vector3.up;
+            lookout.transform.rotation = Quaternion.LookRotation(inward);
+            var witness = lookout.AddComponent<WitnessDetector>();
+            SetEnum(witness, "kind", (int)WitnessDetector.WitnessKind.Pnj);
         }
 
         /// <summary>

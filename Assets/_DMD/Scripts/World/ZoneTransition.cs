@@ -21,6 +21,9 @@ namespace DMD.World
         [SerializeField] private string playerTag = "Player";
         [Tooltip("Délai avant de pouvoir réutiliser ce passage (évite un aller-retour immédiat).")]
         [SerializeField, Min(0f)] private float cooldown = 2f;
+        [Tooltip("Passage fermé tant que cette mission n'est pas terminée (ex. M2_3 pour Gombe). Vide = toujours ouvert.")]
+        [SerializeField] private string requiredQuestCompleted = "";
+        [SerializeField] private string lockedMessage = "Rien à faire là-bas pour l'instant.";
 
         private float lastUse = float.NegativeInfinity;
 
@@ -33,6 +36,18 @@ namespace DMD.World
         {
             if (!other.CompareTag(playerTag) || Time.time - lastUse < cooldown) return;
             if (destination == null || ZoneLoader.Instance == null || ZoneLoader.Instance.IsLoading) return;
+
+            if (!string.IsNullOrEmpty(requiredQuestCompleted) && DMD.Quests.QuestManager.Instance != null)
+            {
+                var quests = DMD.Quests.QuestManager.Instance;
+                var quest = quests.Find(requiredQuestCompleted);
+                if (quest != null && quests.GetState(quest) != DMD.Quests.QuestState.Terminee)
+                {
+                    lastUse = Time.time; // évite de répéter le message à chaque frôlement
+                    DMD.Core.GameEvents.RaiseNarrativeUi("Verrou", lockedMessage);
+                    return;
+                }
+            }
 
             if (transport != Transport.APied && fareCDF > 0)
             {

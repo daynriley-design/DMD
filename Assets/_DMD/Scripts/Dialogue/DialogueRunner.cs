@@ -135,6 +135,18 @@ namespace DMD.Dialogue
             if (PlayerProfile.HasFirstName && story.variablesState.GlobalVariableExistsWithName("prenom"))
                 story.variablesState["prenom"] = PlayerProfile.FirstName;
 
+            // Les stats du joueur sont lisibles dans Ink : VAR stat_rue / stat_savoir / stat_influence / stat_voix.
+            var stats = FindAnyObjectByType<PlayerStats>();
+            if (stats != null)
+            {
+                foreach (StatType stat in System.Enum.GetValues(typeof(StatType)))
+                {
+                    string variable = "stat_" + stat.ToString().ToLowerInvariant();
+                    if (story.variablesState.GlobalVariableExistsWithName(variable))
+                        story.variablesState[variable] = stats.GetStat(stat);
+                }
+            }
+
             if (!string.IsNullOrEmpty(knot))
             {
                 try { story.ChoosePathString(knot); }

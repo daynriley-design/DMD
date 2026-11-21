@@ -96,12 +96,15 @@ namespace DMD.Quests
             }
         }
 
-        /// <summary>Premier objectif non fait de la mission (texte à afficher dans le HUD / le téléphone).</summary>
+        /// <summary>
+        /// Premier objectif OBLIGATOIRE non fait (texte du HUD / du téléphone). Les objectifs optionnels
+        /// (ex. « couper le disjoncteur », une approche parmi d'autres) ne sont pas affichés comme objectif courant.
+        /// </summary>
         public QuestData.Objective CurrentObjective(QuestData quest)
         {
             if (quest == null) return null;
             foreach (var o in quest.objectives)
-                if (!IsObjectiveDone(quest, o.id)) return o;
+                if (!o.optional && !IsObjectiveDone(quest, o.id)) return o;
             return null;
         }
 

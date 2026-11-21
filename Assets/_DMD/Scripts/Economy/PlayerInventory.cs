@@ -18,7 +18,9 @@ namespace DMD.Economy
         [Tooltip("Objets confisqués si le joueur est arrêté en les portant.")]
         [SerializeField] private List<string> compromisingItems = new()
         {
-            "Arrete_Minier_Goma", "Cle_USB_Journaliste", "Photo_Manifeste", "Faux_Badge", "Echantillon_Minerai"
+            // Note_Kivu_Transit n'y est volontairement pas : la perdre bloquerait le mur d'enquête (Mission 2.4).
+            "Arrete_Minier_Goma", "Cle_USB_Journaliste", "Photo_Manifeste", "Faux_Badge",
+            "Echantillon_Minerai", "Enveloppe_Scellee"
         };
 
         [Header("État (debug)")]

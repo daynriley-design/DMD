@@ -22,6 +22,7 @@ namespace DMD.Dialogue
     ///   #FLAG:Clear:Tenue         → l'efface
     ///   #ITEM:Add:Arrete_Minier   → GameEvents.ItemAdded     #ITEM:Remove:Enveloppe_Scellee → retire de l'inventaire
     ///   #EXCHANGE:Chantal:SellUsd:10  (BuyUsd, SellWorn) → change chez un cambiste (CambisteExchange)
+    ///   #EVIDENCE:Board             → mur d'enquête : débloque les missions dont on possède les preuves
     ///   #LOC:Parking_Loyola       → GameEvents.LocationChanged
     ///   #SFX:Phone_Ring           → joue le son correspondant (liste « Sons » ci-dessous)
     ///   #UI:BankNotification:"…"  → GameEvents.NarrativeUi (le HUD l'affiche)
@@ -101,6 +102,7 @@ namespace DMD.Dialogue
                     case "ZONE": HandleZone(parts, tag); break;
                     case "SAFEHOUSE": HandleSafehouse(parts, tag); break;
                     case "EXCHANGE": HandleExchange(tag); break;
+                    case "EVIDENCE": HandleEvidence(parts, tag); break;
                     default: Warn($"tag inconnu « #{tag} »"); break;
                 }
             }
@@ -201,6 +203,16 @@ namespace DMD.Dialogue
             {
                 Warn($"« {p[2]} » n'est pas dans l'inventaire : #ITEM:Remove ignoré.");
             }
+        }
+
+        private void HandleEvidence(string[] p, string tag)
+        {
+            if (p.Length < 2 || Normalize(p[1]) != "BOARD") { Warn($"format attendu #EVIDENCE:Board, reçu « #{tag} »"); return; }
+            if (QuestManager.Instance == null) { Warn("aucun QuestManager dans la scène : #EVIDENCE ignoré."); return; }
+
+            var unlocked = QuestManager.Instance.TryUnlockFromEvidenceBoard();
+            if (unlocked.Count == 0)
+                GameEvents.RaiseNarrativeUi("Enquete", "Rien de nouveau à relier sur le mur.");
         }
 
         private void HandleExchange(string tag)
